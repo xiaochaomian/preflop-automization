@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PokerNow Bot Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card-bg: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --cyan: #39d2c0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    padding: 16px;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; background: var(--card-bg);
+    border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px;
+  }
+  .header h1 { font-size: 16px; color: var(--blue); }
+  .header .hand-num { color: var(--text-dim); font-size: 13px; }
+  .header .status { font-size: 12px; }
+  .status-dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 6px;
+  }
+  .status-dot.live { background: var(--green); animation: pulse 2s infinite; }
+  .status-dot.offline { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Tabs ── */
+  .tab-bar {
+    display: flex; gap: 0; margin-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  .tab-btn {
+    padding: 8px 20px; font-size: 12px; font-family: inherit;
+    background: transparent; color: var(--text-dim); border: none;
+    cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-page { display: none; }
+  .tab-page.active { display: block; }
+
+  /* ── Common ── */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .panel-title {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--text-dim); margin-bottom: 10px;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* ── Cards ── */
+  .cards-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .card-el {
+    width: 48px; height: 68px; background: #fff; border-radius: 5px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .card-el.red { color: #d32f2f; }
+  .card-el.black { color: #1a1a1a; }
+  .card-el .rank { font-size: 18px; line-height: 1; }
+  .card-el .suit { font-size: 15px; line-height: 1; margin-top: 1px; }
+  .card-el.empty { background: #2a3040; border: 2px dashed #444; color: #555; font-size: 13px; }
+  .hand-notation { font-size: 14px; font-weight: bold; color: var(--text-dim); margin-left: 10px; }
+  .hand-notation.alert { color: var(--green); text-shadow: 0 0 8px rgba(63,185,80,0.5); }
+  .panel.alert-glow { border-color: var(--green); box-shadow: 0 0 20px rgba(63,185,80,0.3); animation: alertPulse 1s ease-in-out 3; }
+  @keyframes alertPulse { 0%,100%{box-shadow:0 0 20px rgba(63,185,80,0.3)} 50%{box-shadow:0 0 40px rgba(63,185,80,0.6)} }
+
+  /* ── Stats Grid ── */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat { display: flex; flex-direction: column; }
+  .stat-label { font-size: 10px; color: var(--text-dim); }
+  .stat-value { font-size: 16px; font-weight: bold; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.blue { color: var(--blue); }
+
+  /* ── Tables ── */
+  .players-table { width: 100%; border-collapse: collapse; }
+  .players-table th {
+    text-align: left; font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; padding: 3px 6px; border-bottom: 1px solid var(--border);
+  }
+  .players-table td { padding: 4px 6px; font-size: 12px; border-bottom: 1px solid rgba(48,54,61,0.4); }
+  .players-table tr.me td { color: var(--green); font-weight: bold; }
+  .players-table tr.folded td { color: var(--text-dim); text-decoration: line-through; }
+
+  /* ── Recommendation ── */
+  .rec-panel { background: var(--card-bg); border: 2px solid var(--green); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .rec-panel.fold { border-color: var(--red); }
+  .rec-panel.check,.rec-panel.call { border-color: var(--yellow); }
+  .rec-panel.wait { border-color: var(--border); }
+  .rec-action { font-size: 24px; font-weight: bold; margin-bottom: 6px; }
+  .rec-action.raise,.rec-action.bet { color: var(--green); }
+  .rec-action.fold { color: var(--red); }
+  .rec-action.call,.rec-action.check { color: var(--yellow); }
+  .rec-action.wait { color: var(--text-dim); }
+  .rec-details { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .rec-details .equity { color: var(--blue); font-weight: bold; }
+  .rec-details .hand-cat { color: var(--purple); }
+  .rec-reasoning { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 12px; line-height: 1.4; }
+
+  /* ── Debug ── */
+  .debug-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 150px; overflow-y: auto; }
+  .debug-panel pre { font-size: 10px; color: var(--text-dim); white-space: pre-wrap; }
+
+  /* ── Sound / Audio ── */
+  .sound-toggle { cursor: pointer; font-size: 12px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text); margin-left: 10px; font-family: inherit; }
+  .sound-toggle:hover { border-color: var(--blue); }
+
+  /* ── Mode Toggle ── */
+  .mode-switch { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
+  .mode-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mode-label.active-mode { color: var(--text); font-weight: bold; }
+  .toggle-track {
+    width: 44px; height: 22px; background: var(--border); border-radius: 11px;
+    cursor: pointer; position: relative; transition: background 0.3s;
+  }
+  .toggle-track.autonomous { background: var(--green); }
+  .toggle-thumb {
+    width: 18px; height: 18px; background: #fff; border-radius: 50%;
+    position: absolute; top: 2px; left: 2px; transition: left 0.3s;
+  }
+  .toggle-track.autonomous .toggle-thumb { left: 24px; }
+  .audio-banner { position: fixed; top: 0; left: 0; right: 0; background: #1a2233; border-bottom: 2px solid var(--blue); padding: 12px 16px; text-align: center; z-index: 1000; cursor: pointer; font-size: 14px; }
+  .audio-banner:hover { background: #1e2a3e; }
+  .audio-banner.hidden { display: none; }
+
+  /* ═══════════════════════════════════════════
+     COMPACT 13x13 HAND RANGE GRID
+     ═══════════════════════════════════════════ */
+  .range-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .range-header .panel-title { margin-bottom: 0; }
+  .range-controls { display: flex; gap: 6px; }
+  .range-btn {
+    font-size: 10px; padding: 2px 7px; border: 1px solid var(--border);
+    border-radius: 3px; background: var(--card-bg); color: var(--text-dim); cursor: pointer; font-family: inherit;
+  }
+  .range-btn:hover { border-color: var(--blue); color: var(--text); }
+  .range-grid {
+    display: grid; grid-template-columns: 18px repeat(13, 1fr); gap: 1px;
+    max-width: 460px;
+  }
+  .range-label {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; font-weight: bold; color: var(--text-dim);
+  }
+  .range-cell {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 7px; font-weight: 600; border-radius: 2px; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.12s; user-select: none;
+    min-height: 0; line-height: 1;
+  }
+  .range-cell.pair { background: rgba(188,140,255,0.18); color: var(--purple); }
+  .range-cell.suited { background: rgba(88,166,255,0.12); color: rgba(88,166,255,0.7); }
+  .range-cell.offsuit { background: rgba(230,237,243,0.05); color: rgba(230,237,243,0.35); }
+  .range-cell.active {
+    background: rgba(63,185,80,0.4) !important; color: #fff !important;
+    border-color: rgba(63,185,80,0.6); text-shadow: 0 0 3px rgba(63,185,80,0.4);
+  }
+  .range-cell:hover { border-color: var(--blue); transform: scale(1.15); z-index: 1; }
+  .range-count { font-size: 11px; color: var(--text-dim); margin-left: 6px; }
+  .collapsible-toggle { cursor: pointer; font-size: 10px; color: var(--blue); background: none; border: none; font-family: inherit; text-transform: uppercase; letter-spacing: 1px; }
+  .collapsible-toggle:hover { text-decoration: underline; }
+  .collapsible-content { overflow: hidden; transition: max-height 0.3s; }
+  .collapsible-content.collapsed { max-height: 0 !important; }
+
+  /* ═══════════════════════════════════════════
+     PLAYER SKILL PENTAGON
+     ═══════════════════════════════════════════ */
+  .pentagon-container { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+  .pentagon-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; width: 280px; text-align: center;
+  }
+  .pentagon-card h3 { font-size: 13px; margin-bottom: 4px; color: var(--text); }
+  .pentagon-card .style-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px; display: inline-block;
+    margin-bottom: 8px; font-weight: bold;
+  }
+  .pentagon-card .style-tag.fish { background: rgba(248,81,73,0.2); color: var(--red); }
+  .pentagon-card .style-tag.loose { background: rgba(210,153,34,0.2); color: var(--yellow); }
+  .pentagon-card .style-tag.tag { background: rgba(63,185,80,0.2); color: var(--green); }
+  .pentagon-card .style-tag.nit { background: rgba(88,166,255,0.2); color: var(--blue); }
+  .pentagon-card .style-tag.unknown { background: rgba(139,148,158,0.2); color: var(--text-dim); }
+  .pentagon-svg { display: block; margin: 0 auto; }
+  .pentagon-stats-list { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; margin-top: 6px; }
+  .pentagon-stat { font-size: 9px; color: var(--text-dim); }
+  .pentagon-stat strong { color: var(--text); }
+  .no-data-msg { color: var(--text-dim); font-size: 13px; padding: 40px; text-align: center; }
+
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+    .pentagon-card { width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="audio-banner" id="audioBanner" onclick="unlockAudio()">Click anywhere to enable sound alerts</div>
+
+  <div class="header">
+    <h1>PokerNow Bot v0.2</h1>
+    <span class="hand-num" id="handNum">Hand #--</span>
+    <span class="status" style="display:flex;align-items:center;">
+      <span class="status-dot offline" id="statusDot"></span>
+      <span id="statusText">Connecting...</span>
+      <button class="sound-toggle" id="soundToggle" onclick="toggleSound()">Sound: ON</button>
+      <div class="mode-switch">
+        <span class="mode-label active-mode" id="manualLabel">Manual</span>
+        <div class="toggle-track" id="modeToggle" onclick="togglePlayMode()">
+          <div class="toggle-thumb"></div>
+        </div>
+        <span class="mode-label" id="autoLabel">Auto</span>
+      </div>
+    </span>
+  </div>
+
+  <!-- ═══ Tab Bar ═══ -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('game')">Game</button>
+    <button class="tab-btn" onclick="switchTab('profiles')">Player Profiles</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 1: GAME (main dashboard)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="tab-page active" id="tab-game">
+    <div class="rec-panel wait" id="recPanel">
+      <div class="rec-action wait" id="recAction">WAITING...</div>
+      <div class="rec-details" id="recDetails"></div>
+      <div class="rec-reasoning" id="recReasoning"></div>
+    </div>
+
+    <div class="grid">
+      <div class="panel" id="handPanel">
+        <div class="panel-title">Your Hand</div>
+        <div class="cards-row" id="myCards"><div class="card-el empty">?</div><div class="card-el empty">?</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Board</div>
+        <div class="cards-row" id="boardCards"><div class="card-el empty">?</div><div class="card-el empty">?</div><div class="card-el empty">?</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Game Info</div>
+        <div class="stats-grid">
+          <div class="stat"><span class="stat-label">Stack</span><span class="stat-value green" id="statStack">--</span></div>
+          <div class="stat"><span class="stat-label">Pot</span><span class="stat-value yellow" id="statPot">--</span></div>
+          <div class="stat"><span class="stat-label">To Call</span><span class="stat-value red" id="statCall">--</span></div>
+          <div class="stat"><span class="stat-label">Position</span><span class="stat-value blue" id="statPos">--</span></div>
+          <div class="stat"><span class="stat-label">Street</span><span class="stat-value" id="statStreet">--</span></div>
+          <div class="stat"><span class="stat-label">SPR</span><span class="stat-value" id="statSPR">--</span></div>
+          <div class="stat"><span class="stat-label">BB</span><span class="stat-value" id="statBB">--</span></div>
+          <div class="stat"><span class="stat-label">Players</span><span class="stat-value" id="statPlayers">--</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Players</div>
+        <table class="players-table"><thead><tr><th>Pos</th><th>Name</th><th>Stack</th><th>Status</th></tr></thead><tbody id="playersBody"></tbody></table>
+      </div>
+
+      <!-- Hand Range Grid -->
+      <div class="panel full-width">
+        <div class="range-header">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="panel-title">Alert Hand Range</div>
+            <span class="range-count" id="rangeCount">0 hands</span>
+          </div>
+          <div class="range-controls">
+            <button class="range-btn" onclick="selectAllRange()">All</button>
+            <button class="range-btn" onclick="clearAllRange()">Clear</button>
+            <button class="range-btn" onclick="resetDefaultRange()">Default</button>
+            <button class="collapsible-toggle" id="rangeToggle" onclick="toggleRangeGrid()">Hide</button>
+          </div>
+        </div>
+        <div class="collapsible-content" id="rangeContent">
+          <div class="range-grid" id="rangeGrid"></div>
+        </div>
+      </div>
+
+      <!-- Player Stats Table -->
+      <div class="panel full-width">
+        <div class="panel-title">Player Stats</div>
+        <table class="players-table" id="statsTable">
+          <thead><tr><th>Name</th><th>Hands</th><th>VPIP%</th><th>PFR%</th><th>3Bet%</th><th>CBet%</th><th>WTSD%</th><th>W$SD%</th><th>Style</th></tr></thead>
+          <tbody id="statsBody"><tr><td colspan="9" style="color:var(--text-dim)">Collecting data...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Debug -->
+      <div class="panel full-width">
+        <div class="panel-title">Debug Log</div>
+        <div class="debug-panel"><pre id="debugLog">Waiting for data...</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 2: PLAYER PROFILES (Skill Pentagons)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-profiles">
+    <div class="pentagon-container" id="pentagonContainer">
+      <div class="no-data-msg">Waiting for player data to accumulate...</div>
+    </div>
+  </div>
+
+<script>
+const SUIT_SYMBOLS = { h: '\u2665', d: '\u2666', c: '\u2663', s: '\u2660' };
+const SUIT_COLORS = { h: 'red', d: 'red', c: 'black', s: 'black' };
+const RANKS = ['A','K','Q','J','T','9','8','7','6','5','4','3','2'];
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HAND RANGE GRID
+// ═══════════════════════════════════════════════════════════════════
+let selectedHands = new Set();
+let rangeCollapsed = false;
+
+function handNotation(row, col) {
+  const r1 = RANKS[row], r2 = RANKS[col];
+  if (row === col) return r1 + r2;
+  if (col < row) return r2 + r1 + 's';
+  return r1 + r2 + 'o';
+}
+function cellType(row, col) { return row === col ? 'pair' : col < row ? 'suited' : 'offsuit'; }
+
+function buildRangeGrid() {
+  const grid = document.getElementById('rangeGrid');
+  grid.innerHTML = '';
+  const mkLabel = (t, cls) => { const e = document.createElement('div'); e.className = 'range-label' + (cls ? ' '+cls : ''); e.textContent = t; return e; };
+  grid.appendChild(mkLabel(''));
+  for (let c = 0; c < 13; c++) grid.appendChild(mkLabel(RANKS[c]));
+  for (let r = 0; r < 13; r++) {
+    grid.appendChild(mkLabel(RANKS[r]));
+    for (let c = 0; c < 13; c++) {
+      const n = handNotation(r, c), cell = document.createElement('div');
+      cell.className = 'range-cell ' + cellType(r, c);
+      cell.textContent = n; cell.dataset.hand = n;
+      cell.onclick = () => { if (selectedHands.has(n)) { selectedHands.delete(n); cell.classList.remove('active'); postHandToggle(n, false); } else { selectedHands.add(n); cell.classList.add('active'); postHandToggle(n, true); } updateRangeCount(); };
+      grid.appendChild(cell);
+    }
+  }
+}
+function syncGridUI() { document.querySelectorAll('.range-cell').forEach(c => { if (c.dataset.hand) c.classList.toggle('active', selectedHands.has(c.dataset.hand)); }); updateRangeCount(); }
+function updateRangeCount() { document.getElementById('rangeCount').textContent = selectedHands.size + ' hands'; }
+async function postHandToggle(h, e) { try { await fetch('/api/hand-range/toggle', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({hand:h,enabled:e}) }); } catch(err) { console.error(err); } }
+async function postBulkRange(h) { try { await fetch('/api/hand-range/bulk', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({hands:Array.from(h)}) }); } catch(err) { console.error(err); } }
+function selectAllRange() { selectedHands.clear(); for(let r=0;r<13;r++) for(let c=0;c<13;c++) selectedHands.add(handNotation(r,c)); syncGridUI(); postBulkRange(selectedHands); }
+function clearAllRange() { selectedHands.clear(); syncGridUI(); postBulkRange(selectedHands); }
+function resetDefaultRange() { fetch('/api/hand-range').then(r=>r.json()).then(d => { selectedHands = new Set(d.hands||[]); syncGridUI(); }); }
+function toggleRangeGrid() { const c = document.getElementById('rangeContent'), t = document.getElementById('rangeToggle'); rangeCollapsed = !rangeCollapsed; c.classList.toggle('collapsed', rangeCollapsed); t.textContent = rangeCollapsed ? 'Show' : 'Hide'; }
+async function loadHandRange() { try { const d = await (await fetch('/api/hand-range')).json(); selectedHands = new Set(d.hands||[]); syncGridUI(); } catch(e){} }
+
+// ═══════════════════════════════════════════════════════════════════
+// SOUND ALERT
+// ═══════════════════════════════════════════════════════════════════
+let soundEnabled = true, audioUnlocked = false, lastAlertCards = '', audioCtx = null, pendingAlert = false;
+function unlockAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume().then(()=>{ audioUnlocked=true; document.getElementById('audioBanner').classList.add('hidden'); const n=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0.5,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.2); o.connect(g); g.connect(audioCtx.destination); o.start(n); o.stop(n+0.2); if(pendingAlert){pendingAlert=false;setTimeout(playAlertSound,300);} }); }
+function toggleSound() { soundEnabled=!soundEnabled; document.getElementById('soundToggle').textContent='Sound: '+(soundEnabled?'ON':'OFF'); }
+function playAlertSound() { if(!soundEnabled)return; if(!audioUnlocked||!audioCtx||audioCtx.state==='suspended'){pendingAlert=true;document.getElementById('audioBanner').classList.remove('hidden');return;} try{for(let r=0;r<3;r++){const off=r*0.8,now=audioCtx.currentTime+off;[{f:523,s:0,e:0.25},{f:659,s:0.1,e:0.35},{f:784,s:0.2,e:0.5}].forEach(n=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.value=n.f;g.gain.setValueAtTime(0.001,now+n.s);g.gain.linearRampToValueAtTime(0.8,now+n.s+0.03);g.gain.setValueAtTime(0.8,now+n.s+0.05);g.gain.exponentialRampToValueAtTime(0.01,now+n.e);o.connect(g);g.connect(audioCtx.destination);o.start(now+n.s);o.stop(now+n.e+0.05);});}}catch(e){} }
+
+// ═══════════════════════════════════════════════════════════════════
+// PLAYER SKILL PENTAGON (Radar Chart)
+// ═══════════════════════════════════════════════════════════════════
+function buildPentagonSVG(stats, playerName) {
+  // 5 axes: Aggression, Tightness, 3-Bet Freq, C-Bet Freq, Showdown
+  // Each normalized to 0-1
+  const vpip = stats.vpip || 0;
+  const pfr = stats.pfr || stats.raise_pct || 0;
+  const threeBet = stats.three_bet_pct || 0;
+  const cbet = stats.cbet_pct || 0;
+  const wtsd = stats.wtsd || 0;
+
+  // Normalize to 0-1 (using typical poker ranges)
+  const axes = [
+    { label: 'AGG', full: 'Aggression', value: Math.min(1, (pfr > 0 ? pfr / vpip : 0) || 0), raw: pfr > 0 && vpip > 0 ? (pfr/vpip*100).toFixed(0)+'%' : '--' },
+    { label: 'TIGHT', full: 'Tightness', value: Math.min(1, Math.max(0, (100 - vpip) / 80)), raw: (100-vpip).toFixed(0) },
+    { label: '3BET', full: '3-Bet Freq', value: Math.min(1, threeBet / 25), raw: threeBet.toFixed(1)+'%' },
+    { label: 'CBET', full: 'C-Bet Freq', value: Math.min(1, cbet / 100), raw: cbet.toFixed(1)+'%' },
+    { label: 'SD', full: 'Showdown', value: Math.min(1, wtsd / 50), raw: wtsd.toFixed(1)+'%' },
+  ];
+
+  const n = axes.length;
+  const cx = 100, cy = 100, R = 70;
+  const angleOff = -Math.PI / 2; // start from top
+
+  // Build polygon points for the grid rings
+  function polyPoints(radius) {
+    return axes.map((_, i) => {
+      const a = angleOff + (2 * Math.PI * i) / n;
+      return `${cx + radius * Math.cos(a)},${cy + radius * Math.sin(a)}`;
+    }).join(' ');
+  }
+
+  // Build data polygon
+  const dataPoints = axes.map((ax, i) => {
+    const r = ax.value * R;
+    const a = angleOff + (2 * Math.PI * i) / n;
+    return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
+  }).join(' ');
+
+  // Axis lines
+  const axisLines = axes.map((_, i) => {
+    const a = angleOff + (2 * Math.PI * i) / n;
+    return `<line x1="${cx}" y1="${cy}" x2="${cx + R * Math.cos(a)}" y2="${cy + R * Math.sin(a)}" stroke="rgba(48,54,61,0.6)" stroke-width="0.5"/>`;
+  }).join('');
+
+  // Labels
+  const labels = axes.map((ax, i) => {
+    const a = angleOff + (2 * Math.PI * i) / n;
+    const lx = cx + (R + 18) * Math.cos(a);
+    const ly = cy + (R + 18) * Math.sin(a);
+    const anchor = Math.abs(Math.cos(a)) < 0.1 ? 'middle' : Math.cos(a) > 0 ? 'start' : 'end';
+    return `<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="central" fill="#8b949e" font-size="8" font-weight="bold" font-family="monospace">${ax.label}</text>`;
+  }).join('');
+
+  // Pick color based on play style
+  let fillColor = '88,166,255'; // blue default
+  if (vpip > 40) fillColor = '248,81,73'; // red - fish
+  else if (vpip > 28) fillColor = '210,153,34'; // yellow - loose
+  else if (vpip > 18) fillColor = '63,185,80'; // green - TAG
+  else if (stats.hands >= 5) fillColor = '88,166,255'; // blue - nit
+
+  return `<svg viewBox="0 0 200 200" width="200" height="200" class="pentagon-svg">
+    <!-- Grid rings -->
+    <polygon points="${polyPoints(R)}" fill="none" stroke="rgba(48,54,61,0.4)" stroke-width="0.5"/>
+    <polygon points="${polyPoints(R*0.66)}" fill="none" stroke="rgba(48,54,61,0.3)" stroke-width="0.5"/>
+    <polygon points="${polyPoints(R*0.33)}" fill="none" stroke="rgba(48,54,61,0.2)" stroke-width="0.5"/>
+    <!-- Axis lines -->
+    ${axisLines}
+    <!-- Data fill -->
+    <polygon points="${dataPoints}" fill="rgba(${fillColor},0.2)" stroke="rgba(${fillColor},0.8)" stroke-width="1.5"/>
+    <!-- Data dots -->
+    ${axes.map((ax, i) => {
+      const r = ax.value * R;
+      const a = angleOff + (2 * Math.PI * i) / n;
+      return `<circle cx="${cx + r * Math.cos(a)}" cy="${cy + r * Math.sin(a)}" r="2.5" fill="rgba(${fillColor},1)"/>`;
+    }).join('')}
+    <!-- Labels -->
+    ${labels}
+  </svg>`;
+}
+
+function getStyleInfo(s) {
+  if (!s || s.hands < 3) return { label: 'Unknown', cls: 'unknown' };
+  const vpip = s.vpip || 0;
+  const pfr = s.pfr || s.raise_pct || 0;
+  let base = '', cls = '';
+  if (vpip > 40) { base = 'Fish'; cls = 'fish'; }
+  else if (vpip > 28) { base = 'Loose'; cls = 'loose'; }
+  else if (vpip > 18) { base = 'TAG'; cls = 'tag'; }
+  else { base = 'Nit'; cls = 'nit'; }
+  if (pfr > 0 && vpip / pfr > 2.5) base += '-Passive';
+  else if (pfr >= 15) base += '-Aggro';
+  return { label: base, cls };
+}
+
+function renderPentagons(playerStats, myName) {
+  const container = document.getElementById('pentagonContainer');
+  const entries = Object.entries(playerStats || {});
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="no-data-msg">Waiting for player data to accumulate...</div>';
+    return;
+  }
+  entries.sort((a,b) => b[1].hands - a[1].hands);
+  container.innerHTML = entries.map(([name, s]) => {
+    const style = getStyleInfo(s);
+    const isMe = name === myName;
+    const vpip = (s.vpip||0).toFixed(1);
+    const pfr = (s.pfr||s.raise_pct||0).toFixed(1);
+    const threeBet = (s.three_bet_pct||0).toFixed(1);
+    const cbet = (s.cbet_pct||0).toFixed(1);
+    const wtsd = (s.wtsd||0).toFixed(1);
+    const wssd = (s.wssd||0).toFixed(1);
+    return `<div class="pentagon-card" style="${isMe ? 'border-color:var(--green);' : ''}">
+      <h3>${isMe ? '>>> '+name+' <<<' : name}</h3>
+      <span class="style-tag ${style.cls}">${style.label}</span>
+      <span style="font-size:9px;color:var(--text-dim);margin-left:4px;">${s.hands} hands</span>
+      ${buildPentagonSVG(s, name)}
+      <div class="pentagon-stats-list">
+        <span class="pentagon-stat">VPIP <strong>${vpip}%</strong></span>
+        <span class="pentagon-stat">PFR <strong>${pfr}%</strong></span>
+        <span class="pentagon-stat">3Bet <strong>${threeBet}%</strong></span>
+        <span class="pentagon-stat">CBet <strong>${cbet}%</strong></span>
+        <span class="pentagon-stat">WTSD <strong>${wtsd}%</strong></span>
+        <span class="pentagon-stat">W$SD <strong>${wssd}%</strong></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PLAY MODE TOGGLE
+// ═══════════════════════════════════════════════════════════════════
+let currentMode = 'manual';
+function syncModeUI() {
+  const track = document.getElementById('modeToggle');
+  const ml = document.getElementById('manualLabel');
+  const al = document.getElementById('autoLabel');
+  if (currentMode === 'autonomous') {
+    track.classList.add('autonomous');
+    ml.classList.remove('active-mode');
+    al.classList.add('active-mode');
+  } else {
+    track.classList.remove('autonomous');
+    ml.classList.add('active-mode');
+    al.classList.remove('active-mode');
+  }
+}
+async function togglePlayMode() {
+  const newMode = currentMode === 'manual' ? 'autonomous' : 'manual';
+  try {
+    const res = await fetch('/api/mode', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:newMode}) });
+    const data = await res.json();
+    if (data.mode) { currentMode = data.mode; syncModeUI(); }
+  } catch(e) { console.error('Failed to toggle mode:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MAIN UPDATE
+// ═══════════════════════════════════════════════════════════════════
+function renderCard(card) {
+  if (!card) return '<div class="card-el empty">?</div>';
+  const color = SUIT_COLORS[card.suit] || 'black';
+  const sym = SUIT_SYMBOLS[card.suit] || card.suit;
+  return `<div class="card-el ${color}"><span class="rank">${card.rank}</span><span class="suit">${sym}</span></div>`;
+}
+
+function calculateStyle(s) {
+  if (s.hands < 5) return '<span style="color:var(--text-dim)">--</span>';
+  const vpip = s.vpip||0, pfr = s.pfr||s.raise_pct||0;
+  let style = '';
+  if (vpip > 40) style = '<span style="color:var(--red)">Fish</span>';
+  else if (vpip > 28) style = '<span style="color:var(--yellow)">Loose</span>';
+  else if (vpip > 18) style = '<span style="color:var(--green)">TAG</span>';
+  else style = '<span style="color:var(--blue)">Nit</span>';
+  if (pfr > 0 && vpip / pfr > 2.5) style += ' <span style="color:var(--text-dim)">Passive</span>';
+  else if (pfr >= 15) style += ' <span style="color:var(--red)">Aggro</span>';
+  return style;
+}
+
+let lastMyName = '';
+
+function update(data) {
+  const state = data.state;
+  const rec = data.recommendation;
+  const debug = data.debug || [];
+
+  // Sync play mode from server
+  if (data.play_mode && data.play_mode !== currentMode) { currentMode = data.play_mode; syncModeUI(); }
+
+  document.getElementById('statusDot').className = state ? 'status-dot live' : 'status-dot offline';
+  document.getElementById('statusText').textContent = state ? 'Live' : 'No data';
+  if (!state) return;
+
+  lastMyName = state.my_name || '';
+  document.getElementById('handNum').textContent = 'Hand #' + (state.hand_number || '--');
+
+  // Cards
+  const myCardsEl = document.getElementById('myCards');
+  const handPanel = document.getElementById('handPanel');
+  if (state.my_cards && state.my_cards.length > 0) {
+    let html = state.my_cards.map(renderCard).join('');
+    if (state.hand_notation) html += `<span class="hand-notation ${state.is_alert_hand ? 'alert' : ''}">${state.hand_notation}</span>`;
+    myCardsEl.innerHTML = html;
+    const cardKey = state.my_cards.map(c => c.rank + c.suit).join(',');
+    if (state.is_alert_hand && cardKey !== lastAlertCards) { handPanel.classList.add('alert-glow'); playAlertSound(); lastAlertCards = cardKey; setTimeout(() => handPanel.classList.remove('alert-glow'), 4000); }
+    else if (!state.is_alert_hand) handPanel.classList.remove('alert-glow');
+  } else { myCardsEl.innerHTML = '<div class="card-el empty">?</div><div class="card-el empty">?</div>'; handPanel.classList.remove('alert-glow'); lastAlertCards = ''; }
+
+  const boardEl = document.getElementById('boardCards');
+  boardEl.innerHTML = (state.community_cards && state.community_cards.length > 0)
+    ? state.community_cards.map(renderCard).join('')
+    : Array(3).fill('<div class="card-el empty">?</div>').join('');
+
+  // Game info
+  document.getElementById('statStack').textContent = state.my_stack ? '$' + Number(state.my_stack).toLocaleString() : '--';
+  document.getElementById('statPot').textContent = '$' + Number(state.pot || 0).toLocaleString();
+  document.getElementById('statCall').textContent = '$' + Number(state.current_bet || 0).toLocaleString();
+  document.getElementById('statPos').textContent = state.my_position || '--';
+  document.getElementById('statStreet').textContent = (state.street || '--').toUpperCase();
+  document.getElementById('statSPR').textContent = state.spr != null ? state.spr : '--';
+  document.getElementById('statBB').textContent = state.big_blind ? '$' + state.big_blind : '--';
+  document.getElementById('statPlayers').textContent = state.num_players || '--';
+
+  // Players table
+  const tbody = document.getElementById('playersBody');
+  if (state.players && state.players.length > 0) {
+    tbody.innerHTML = state.players.map(p => {
+      const isMe = p.name === state.my_name;
+      return `<tr class="${isMe ? 'me' : (!p.is_active ? 'folded' : '')}"><td>${p.position}</td><td>${isMe ? '>>> '+p.name+' <<<' : p.name}</td><td>$${Number(p.stack).toLocaleString()}</td><td>${p.is_active ? 'active' : 'folded'}</td></tr>`;
+    }).join('');
+  }
+
+  // Recommendation
+  const panel = document.getElementById('recPanel');
+  const actionEl = document.getElementById('recAction');
+  const detailsEl = document.getElementById('recDetails');
+  const reasonEl = document.getElementById('recReasoning');
+  if (rec && rec.action !== 'wait') {
+    panel.className = 'rec-panel ' + rec.action;
+    actionEl.className = 'rec-action ' + rec.action;
+    actionEl.textContent = rec.action.toUpperCase() + (rec.amount > 0 ? ' $' + Number(rec.amount).toLocaleString() : '');
+    const eq = rec.equity != null ? (rec.equity * 100).toFixed(1) + '%' : '--';
+    detailsEl.innerHTML = `<span class="equity">Equity: ${eq}</span> | <span class="hand-cat">${rec.hand_category || '--'}</span> | Conf: ${rec.confidence != null ? (rec.confidence*100).toFixed(0)+'%' : '--'}`;
+    reasonEl.textContent = rec.reasoning || '';
+  } else { panel.className = 'rec-panel wait'; actionEl.className = 'rec-action wait'; actionEl.textContent = 'WAITING FOR CARDS...'; detailsEl.innerHTML = ''; reasonEl.textContent = ''; }
+
+  // Player Stats Table
+  const playerStats = data.player_stats || {};
+  const statsBody = document.getElementById('statsBody');
+  const entries = Object.entries(playerStats);
+  if (entries.length > 0) {
+    entries.sort((a,b) => b[1].hands - a[1].hands);
+    statsBody.innerHTML = entries.map(([name, s]) => {
+      const isMe = name === state.my_name;
+      return `<tr class="${isMe?'me':''}">
+        <td>${isMe ? '>>> '+name+' <<<' : name}</td>
+        <td>${s.hands}</td>
+        <td>${(s.vpip||0).toFixed(1)}%</td>
+        <td>${(s.pfr||s.raise_pct||0).toFixed(1)}%</td>
+        <td>${(s.three_bet_pct||0).toFixed(1)}%</td>
+        <td>${(s.cbet_pct||0).toFixed(1)}%</td>
+        <td>${(s.wtsd||0).toFixed(1)}%</td>
+        <td>${(s.wssd||0).toFixed(1)}%</td>
+        <td>${calculateStyle(s)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Update Pentagon tab
+  renderPentagons(playerStats, state.my_name);
+
+  // Debug
+  document.getElementById('debugLog').textContent = debug.length > 0 ? debug.join('\n') : 'No debug info';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SSE
+// ═══════════════════════════════════════════════════════════════════
+function connect() {
+  const es = new EventSource('/events');
+  es.onmessage = (e) => { try { update(JSON.parse(e.data)); } catch(err) { console.error(err); } };
+  es.onerror = () => { document.getElementById('statusDot').className='status-dot offline'; document.getElementById('statusText').textContent='Disconnected'; es.close(); setTimeout(connect,3000); };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════
+buildRangeGrid();
+loadHandRange();
+connect();
+document.addEventListener('click', () => { if (!audioUnlocked) unlockAudio(); }, { once: true });
+</script>
+</body>
+</html>
