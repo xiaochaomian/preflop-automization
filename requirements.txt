@@ -1,0 +1,5 @@
+playwright>=1.40
+treys>=0.1.8
+python-dotenv>=1.0
+rich>=13.0
+aiohttp>=3.9
